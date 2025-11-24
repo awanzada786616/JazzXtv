@@ -1,109 +1,179 @@
 <!doctype html>
-<html lang="en">
+<html lang="ur">
 <head>
   <meta charset="utf-8" />
-  <title>API Fetch Demo</title>
+  <title>Tamasha API - Channel Grid</title>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <style>
-    body { font-family: Arial, sans-serif; padding: 18px; background:#fafafa; color:#111 }
-    button { margin:6px 0; padding:8px 12px; }
-    pre { background:#222; color:#efe; padding:12px; border-radius:6px; max-height:280px; overflow:auto; }
-    .note { font-size:0.9em; color:#555; margin-top:8px; }
+    :root{--bg:#0f0f10;--card:#141416;--muted:#bfc0c5;--accent:#2b6df6}
+    body{margin:0;font-family:Inter, Arial, sans-serif;background:var(--bg);color:#fff}
+    header{background:linear-gradient(90deg,#2b6df6,#4a3bd6);padding:14px 18px}
+    header h1{margin:0;font-size:18px}
+    .container{padding:16px;max-width:1100px;margin:0 auto}
+    .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:12px}
+    .card{background:var(--card);border-radius:10px;padding:8px;text-align:center;cursor:pointer;box-shadow:0 6px 18px rgba(0,0,0,.6)}
+    .card img{width:100%;height:80px;object-fit:cover;border-radius:8px}
+    .card .title{font-size:13px;color:var(--muted);margin-top:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    #playerWrap{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);background:#000;border-radius:8px;padding:6px;display:none;z-index:999;width:90%;max-width:850px}
+    #closeBtn{position:absolute;right:8px;top:6px;background:#fff;color:#000;border:none;padding:4px 8px;border-radius:6px;cursor:pointer}
+    video{width:100%;height:100%;max-height:60vh;background:#000;border-radius:6px}
+    #log{margin-top:12px;color:#ddd;font-size:13px;white-space:pre-wrap;max-height:160px;overflow:auto;background:#0b0b0b;padding:8px;border-radius:8px}
+    .small{font-size:12px;color:var(--muted)}
   </style>
 </head>
 <body>
-  <h2>API Fetch Examples (from your screenshot)</h2>
+  <header>
+    <h1>Tamasha API — Channel Grid</h1>
+  </header>
 
-  <p>کلک کریں اور response نیچے دکھے گا۔</p>
+  <div class="container">
+    <p class="small">یہ template آپ کی paid API سے fetch کرے گا — نیچے instructions دیکھیں۔</p>
 
-  <!-- 1) jazztv.pk (example GET) -->
-  <div>
-    <strong>1) GET https://jazztv.pk/</strong><br/>
-    <button id="btnJazz">Fetch jazztv.pk (GET)</button>
+    <div id="grid" class="grid"></div>
+
+    <div id="playerWrap">
+      <button id="closeBtn">Close ✕</button>
+      <video id="player" controls playsinline></video>
+    </div>
+
+    <h3 class="small">Logs</h3>
+    <div id="log">No requests yet.</div>
   </div>
 
-  <!-- 2) IP address 52.19.59.227 (example GET) -->
-  <div>
-    <strong>2) GET http://52.19.59.227/</strong><br/>
-    <button id="btnIP">Fetch 52.19.59.227 (GET)</button>
-  </div>
+<script>
+/*
+  CONFIG — اپنی paid API کی تفصیلات یہاں ڈالیں:
+  - API_URL: ایک endpoint جو channels/playlist return کرتا ہے (JSON)
+  - AUTH_HEADER (optional): اگر API token کے ذریعے auth کرتی ہے تو اس میں رکھیں
+  توقع کی گئی JSON structure (نمونیہ):
+  [
+    {
+      "name": "Geo News",
+      "logo": "https://example.com/geo.png",
+      "stream": "https://example.com/stream.m3u8"
+    },
+    ...
+  ]
+*/
+const CONFIG = {
+  API_URL: 'https://your-tamasha-api.example.com/v1/channels', // <-- یہاں اپنی API رکھیں
+  AUTH_HEADER: 'Bearer YOUR_API_TOKEN',                        // <-- اگر چاہیے تو ٹوکن درج کریں، ورنہ خالی کریں ''
+  USE_PROXY: false                                             // اگر آپ نے node proxy چلائی ہے تو true کریں اور proxy میں URL رکھیں
+};
 
-  <!-- 3) jquery file from portal.ncnd.jazz.com.pk -->
-  <div>
-    <strong>3) GET portal.ncnd.jazz.com.pk (JS file)</strong><br/>
-    <button id="btnJQ">Fetch jquery_Bnwh7ANmEx.min.js</button>
-  </div>
+const logEl = document.getElementById('log');
+function log(msg){
+  const time = new Date().toLocaleTimeString();
+  logEl.textContent = `[${time}] ${msg}\n` + logEl.textContent;
+}
 
-  <!-- Output -->
-  <h3>Response / Logs</h3>
-  <pre id="output">No requests yet.</pre>
+async function fetchChannels(){
+  try {
+    log('Fetching channels from API: ' + CONFIG.API_URL);
+    const headers = {};
+    if (CONFIG.AUTH_HEADER) headers['Authorization'] = CONFIG.AUTH_HEADER;
+    // اگر آپ proxy استعمال کر رہے ہیں تو وہاں بھی یہی header بھیجیں
+    const res = await fetch(CONFIG.API_URL, { headers });
+    log('HTTP ' + res.status + ' ' + res.statusText);
+    if (!res.ok) throw new Error('Network response not ok: ' + res.status);
+    const data = await res.json();
+    if (!Array.isArray(data)) throw new Error('API returned non-array JSON');
+    renderGrid(data);
+    log('Channels loaded: ' + data.length);
+  } catch (err){
+    log('Fetch error: ' + err.message);
+    // عام طور پر یہ CORS یا auth error ہو سکتی ہے — نیچے نوٹس چیک کریں
+  }
+}
 
-  <p class="note">
-    Notes:
-    <ul>
-      <li>If a request fails with a CORS error, the server must allow cross-origin requests or you must use a server-side proxy.</li>
-      <li>CONNECT and DNS-over-TLS (8.8.8.8:853) cannot be fetched from a browser page.</li>
-    </ul>
-  </p>
+function renderGrid(channels){
+  const grid = document.getElementById('grid');
+  grid.innerHTML = '';
+  channels.forEach(ch => {
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.innerHTML = `
+      <img src="${escapeHtml(ch.logo || '')}" alt="${escapeHtml(ch.name || '')}" onerror="this.src='data:image/svg+xml;utf8,<svg xmlns=\\'http://www.w3.org/2000/svg\\' width=300 height=180><rect width=100% height=100% fill=%23222 /><text x=50% y=50% fill=%23fff font-size=16 text-anchor=middle dominant-baseline=middle>NO+IMAGE</text></svg>'" />
+      <div class="title">${escapeHtml(ch.name || 'Untitled')}</div>
+    `;
+    card.addEventListener('click', () => openPlayer(ch));
+    grid.appendChild(card);
+  });
+}
 
-  <script>
-    const out = document.getElementById('output');
+function openPlayer(channel){
+  const wrap = document.getElementById('playerWrap');
+  const player = document.getElementById('player');
+  // stream could be HLS (.m3u8) or MP4 — HTML <video> natively won't play HLS on many browsers,
+  // but mobile Safari supports HLS natively. If not supported, you should integrate hls.js.
+  player.pause();
+  player.removeAttribute('src');
+  player.src = channel.stream;
+  player.load();
+  wrap.style.display = 'block';
+  player.play().catch(e => {
+    log('Autoplay blocked / play error: ' + e.message);
+  });
+  log('Playing: ' + channel.name + ' -> ' + channel.stream);
+}
 
-    function log(text){
-      const now = new Date().toLocaleTimeString();
-      out.textContent = `[${now}] ${text}\\n` + out.textContent;
-    }
+document.getElementById('closeBtn').addEventListener('click', () => {
+  const wrap = document.getElementById('playerWrap');
+  const player = document.getElementById('player');
+  player.pause();
+  player.removeAttribute('src');
+  wrap.style.display = 'none';
+});
 
-    async function safeFetch(url, opts = {}) {
-      log(`Starting fetch: ${url}`);
-      try {
-        const res = await fetch(url, opts);
-        log(`HTTP ${res.status} ${res.statusText} — url: ${res.url}`);
+// small helper to avoid XSS in inserted text
+function escapeHtml(s){
+  return String(s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
 
-        // try to show JSON if possible, otherwise text
-        const contentType = res.headers.get('content-type') || '';
-        if (contentType.includes('application/json')) {
-          const json = await res.json();
-          log('JSON response: ' + JSON.stringify(json, null, 2));
-        } else {
-          const text = await res.text();
-          // show only first 4000 chars to keep output reasonable
-          log('Text (first 4000 chars):\\n' + text.slice(0, 4000));
-        }
-      } catch (err) {
-        // likely network/CORS error
-        log('Fetch error: ' + String(err));
-        if (err instanceof TypeError) {
-          log('Note: This might be a CORS, network or TLS issue.');
-        }
-      }
-    }
-
-    // Button handlers
-    document.getElementById('btnJazz').addEventListener('click', () => {
-      // try HTTPS root — real path may differ
-      safeFetch('https://jazztv.pk/');
+// Optional: if your streams are HLS (.m3u8) and you want wide browser support, load hls.js dynamically
+async function ensureHlsSupport(){
+  const video = document.getElementById('player');
+  const isNative = video.canPlayType('application/vnd.apple.mpegurl');
+  if (isNative) {
+    log('Browser supports native HLS');
+    return;
+  }
+  // load hls.js from CDN
+  if (!window.Hls) {
+    log('Loading hls.js for HLS playback');
+    await new Promise((res, rej) => {
+      const s = document.createElement('script');
+      s.src = 'https://cdn.jsdelivr.net/npm/hls.js@latest';
+      s.onload = res; s.onerror = rej;
+      document.head.appendChild(s);
     });
-
-    document.getElementById('btnIP').addEventListener('click', () => {
-      // If the host requires Host header, direct IP may respond differently.
-      safeFetch('http://52.19.59.227/');
-    });
-
-    document.getElementById('btnJQ').addEventListener('click', () => {
-      // Use the exact path you saw in the screenshot (trimmed example)
-      safeFetch('http://portal.ncnd.jazz.com.pk/ncnd/public/js/jquery_Bnwh7ANmEx.min.js');
-    });
-
-    // Example: POST with JSON (if API supports it)
-    async function examplePost() {
-      const url = 'https://jazztv.pk/api/example'; // replace with real endpoint
-      await safeFetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ test: 'hello' })
-      });
+  }
+  // override openPlayer to attach Hls if needed
+  const originalOpen = openPlayer;
+  window.openPlayer = function(channel){
+    const wrap = document.getElementById('playerWrap');
+    const player = document.getElementById('player');
+    if (window.Hls && channel.stream && channel.stream.endsWith('.m3u8')){
+      if (window._hls) { window._hls.destroy(); window._hls = null; }
+      const hls = new Hls();
+      window._hls = hls;
+      hls.loadSource(channel.stream);
+      hls.attachMedia(player);
+      wrap.style.display = 'block';
+      player.play().catch(e => log('play error: ' + e.message));
+      log('Playing HLS via hls.js: ' + channel.name);
+    } else {
+      originalOpen(channel);
     }
-  </script>
+  };
+}
+
+(async function init(){
+  // If streams are .m3u8, better initialise hls.js
+  await ensureHlsSupport();
+  // fetch channels from API
+  await fetchChannels();
+})();
+</script>
 </body>
 </html>
