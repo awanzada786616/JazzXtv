@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>API Fetch Demo</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    body { font-family: Arial, sans-serif; padding: 18px; background:#fafafa; color:#111 }
+    button { margin:6px 0; padding:8px 12px; }
+    pre { background:#222; color:#efe; padding:12px; border-radius:6px; max-height:280px; overflow:auto; }
+    .note { font-size:0.9em; color:#555; margin-top:8px; }
+  </style>
+</head>
+<body>
+  <h2>API Fetch Examples (from your screenshot)</h2>
+
+  <p>کلک کریں اور response نیچے دکھے گا۔</p>
+
+  <!-- 1) jazztv.pk (example GET) -->
+  <div>
+    <strong>1) GET https://jazztv.pk/</strong><br/>
+    <button id="btnJazz">Fetch jazztv.pk (GET)</button>
+  </div>
+
+  <!-- 2) IP address 52.19.59.227 (example GET) -->
+  <div>
+    <strong>2) GET http://52.19.59.227/</strong><br/>
+    <button id="btnIP">Fetch 52.19.59.227 (GET)</button>
+  </div>
+
+  <!-- 3) jquery file from portal.ncnd.jazz.com.pk -->
+  <div>
+    <strong>3) GET portal.ncnd.jazz.com.pk (JS file)</strong><br/>
+    <button id="btnJQ">Fetch jquery_Bnwh7ANmEx.min.js</button>
+  </div>
+
+  <!-- Output -->
+  <h3>Response / Logs</h3>
+  <pre id="output">No requests yet.</pre>
+
+  <p class="note">
+    Notes:
+    <ul>
+      <li>If a request fails with a CORS error, the server must allow cross-origin requests or you must use a server-side proxy.</li>
+      <li>CONNECT and DNS-over-TLS (8.8.8.8:853) cannot be fetched from a browser page.</li>
+    </ul>
+  </p>
+
+  <script>
+    const out = document.getElementById('output');
+
+    function log(text){
+      const now = new Date().toLocaleTimeString();
+      out.textContent = `[${now}] ${text}\\n` + out.textContent;
+    }
+
+    async function safeFetch(url, opts = {}) {
+      log(`Starting fetch: ${url}`);
+      try {
+        const res = await fetch(url, opts);
+        log(`HTTP ${res.status} ${res.statusText} — url: ${res.url}`);
+
+        // try to show JSON if possible, otherwise text
+        const contentType = res.headers.get('content-type') || '';
+        if (contentType.includes('application/json')) {
+          const json = await res.json();
+          log('JSON response: ' + JSON.stringify(json, null, 2));
+        } else {
+          const text = await res.text();
+          // show only first 4000 chars to keep output reasonable
+          log('Text (first 4000 chars):\\n' + text.slice(0, 4000));
+        }
+      } catch (err) {
+        // likely network/CORS error
+        log('Fetch error: ' + String(err));
+        if (err instanceof TypeError) {
+          log('Note: This might be a CORS, network or TLS issue.');
+        }
+      }
+    }
+
+    // Button handlers
+    document.getElementById('btnJazz').addEventListener('click', () => {
+      // try HTTPS root — real path may differ
+      safeFetch('https://jazztv.pk/');
+    });
+
+    document.getElementById('btnIP').addEventListener('click', () => {
+      // If the host requires Host header, direct IP may respond differently.
+      safeFetch('http://52.19.59.227/');
+    });
+
+    document.getElementById('btnJQ').addEventListener('click', () => {
+      // Use the exact path you saw in the screenshot (trimmed example)
+      safeFetch('http://portal.ncnd.jazz.com.pk/ncnd/public/js/jquery_Bnwh7ANmEx.min.js');
+    });
+
+    // Example: POST with JSON (if API supports it)
+    async function examplePost() {
+      const url = 'https://jazztv.pk/api/example'; // replace with real endpoint
+      await safeFetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ test: 'hello' })
+      });
+    }
+  </script>
+</body>
+</html>
